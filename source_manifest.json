@@ -1,0 +1,21 @@
+{
+  "source_month": "2024-01",
+  "taxi": {
+    "url": "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2024-01.parquet",
+    "file_name": "yellow_tripdata_2024-01.parquet",
+    "sha256": "C4D59DA7BBC8ABAEEEB1727947EE93D9891A71ACB42854BD80DB1571B2030510",
+    "bytes": 49961641,
+    "retrieved_at_utc": "2026-10-25T23:03:11Z"
+  },
+  "weather": {
+    "request_url": "https://archive-api.open-meteo.com/v1/archive?latitude=40.7580&longitude=-73.9855&start_date=2024-01-01&end_date=2024-02-01&hourly=temperature_2m,precipitation&models=era5&timezone=UTC&timeformat=unixtime",
+    "file_name": "open_meteo_era5_nyc_2024-01.json",
+    "sha256": "6D21F1A7809FDCF8EA0BA805B826C791D400E3AD1CE0150B3BA2663BD7444910",
+    "bytes": 15939,
+    "retrieved_at_utc": "2026-10-25T23:05:44Z",
+    "model": "era5",
+    "latitude_requested": 40.758,
+    "longitude_requested": -73.9855
+  },
+  "contract_version": "1.0.0"
+}
