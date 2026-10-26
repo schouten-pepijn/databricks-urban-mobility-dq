@@ -201,10 +201,7 @@ def create_taxi_fixtures(source_path: Path, fixture_dir: Path) -> None:
     last_pickup = day_summary["last_pickup_local"]
     if first_pickup is None or last_pickup is None:
         raise ValueError("The January 1 fixture has no pickup timestamps.")
-    if (
-        first_pickup < start
-        or last_pickup >= end
-    ):
+    if first_pickup < start or last_pickup >= end:
         raise ValueError("The January 1 fixture contains pickups outside that day.")
 
     print(
