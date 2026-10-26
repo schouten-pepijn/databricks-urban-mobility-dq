@@ -45,9 +45,7 @@ def sink_classified_taxi(
     quarantine_path = (
         stage_root / "quarantine" / f"batch_id={batch_id}" / "part-000.parquet"
     )
-    completion_marker = (
-        stage_root / "_complete" / f"batch_id={batch_id}" / "_SUCCESS"
-    )
+    completion_marker = stage_root / "_complete" / f"batch_id={batch_id}" / "_SUCCESS"
 
     # The marker means both outputs were fully written, so committed data is immutable.
     if completion_marker.exists():
