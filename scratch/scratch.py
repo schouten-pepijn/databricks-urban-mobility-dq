@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 from datetime import UTC, datetime
@@ -224,9 +225,11 @@ def create_taxi_fixtures(source_path: Path, fixture_dir: Path) -> None:
     )
 
 
-def main() -> None:
+def main(manifest_path: Path | None = None) -> None:
     """Validate frozen source inputs and create local source-derived fixtures."""
-    manifest_path = Path(__file__).resolve().parents[1] / "source_manifest.json"
+    if manifest_path is None:
+        manifest_path = Path(__file__).resolve().parents[1] / "source_manifest.json"
+
     manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(manifest_data, dict):
         raise TypeError("Source manifest must be a JSON object.")
@@ -254,4 +257,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        help="Path to a source manifest; defaults to source_manifest.json",
+    )
+    arguments = parser.parse_args()
+    main(arguments.manifest)
