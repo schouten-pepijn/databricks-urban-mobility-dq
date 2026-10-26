@@ -4,6 +4,34 @@ from pathlib import Path
 import polars as pl
 
 
+def count_parquet_rows(path: Path) -> int:
+    """Count the number of rows in a parquet file."""
+    count = pl.scan_parquet(path).select(pl.len().alias("row_count")).collect().item()
+    return int(count)
+
+
+def reconcile_taxi_row_counts(
+    raw_path: Path,
+    accepted_path: Path,
+    quarantine_path: Path,
+) -> dict[str, int]:
+    """Count the raw and staged files and verify that no rows were lost."""
+    counts = {
+        "raw": count_parquet_rows(raw_path),
+        "accepted": count_parquet_rows(accepted_path),
+        "quarantine": count_parquet_rows(quarantine_path),
+    }
+
+    if counts["raw"] != counts["accepted"] + counts["quarantine"]:
+        raise ValueError(
+            "Row-count reconciliation failed: "
+            f"raw={counts['raw']}, accepted={counts['accepted']}, "
+            f"quarantine={counts['quarantine']}"
+        )
+
+    return counts
+
+
 def sink_classified_taxi(
     accepted: pl.LazyFrame,
     quarantine: pl.LazyFrame,
