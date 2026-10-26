@@ -9,8 +9,9 @@ def add_utc_timestamps(
     source_timezone: str,
 ) -> pl.LazyFrame:
     """Interpret naive taxi times in their source timezone and derive UTC times."""
+    # These source values are local clock readings, so attach their timezone first.
+    # Ambiguous or nonexistent DST times become null for the classifier to quarantine.
     return rows.with_columns(
-        # tpep_pickup_datetime
         pl.col("tpep_pickup_datetime")
         .dt.replace_time_zone(
             source_timezone,
@@ -19,7 +20,6 @@ def add_utc_timestamps(
         )
         .dt.convert_time_zone("UTC")
         .alias("pickup_utc"),
-        # tpep_dropoff_datetime
         pl.col("tpep_dropoff_datetime")
         .dt.replace_time_zone(
             source_timezone,
@@ -39,6 +39,7 @@ def scan_taxi_with_identity(
     """Scan taxi rows and add stable source and batch identifiers."""
     return (
         pl.scan_parquet(parquet_path)
+        # Add the row number before any later filters so it points to the source row.
         .with_row_index("source_row_number")
         .with_columns(
             pl.col("source_row_number").cast(pl.Int64),
@@ -61,6 +62,7 @@ def classify_taxi(
     month_end_local: datetime,
 ) -> tuple[pl.LazyFrame, pl.LazyFrame]:
     """Split rows into accepted and quarantined sets using taxi v1 rules."""
+    # Keep these checks in contract order: the first matching rule is the primary reason.
     reason_code = (
         pl.when(pl.col("tpep_pickup_datetime").is_null())
         .then(pl.lit("pickup_missing"))
@@ -98,6 +100,7 @@ def classify_taxi(
 
     classified = rows.with_columns(
         reason_code.alias("reason_code"),
+        # A negative amount is useful to measure, but the contract does not reject it.
         (pl.col("total_amount") < 0)
         .fill_null(False)
         .alias("negative_total_amount_warning"),
@@ -106,4 +109,5 @@ def classify_taxi(
     accepted = classified.filter(pl.col("reason_code").is_null())
     quarantine = classified.filter(pl.col("reason_code").is_not_null())
 
+    # The two filters partition the input: each row belongs to exactly one output.
     return accepted, quarantine
