@@ -10,23 +10,32 @@ def sink_classified_taxi(
     stage_root: Path,
     batch_id: str,
 ) -> tuple[Path, Path]:
-    """Write accepted and quarantined rows to separate batch Parquet files."""
+    """Write both outputs, then mark the batch complete; assumes one batch writer."""
     accepted_path = (
         stage_root / "accepted" / f"batch_id={batch_id}" / "part-000.parquet"
     )
     quarantine_path = (
         stage_root / "quarantine" / f"batch_id={batch_id}" / "part-000.parquet"
     )
+    completion_marker = (
+        stage_root / "_complete" / f"batch_id={batch_id}" / "_SUCCESS"
+    )
 
-    # Staged batch files are immutable: don't silently replace an older output.
-    if accepted_path.exists() or quarantine_path.exists():
+    # The marker means both outputs were fully written, so committed data is immutable.
+    if completion_marker.exists():
         raise FileExistsError(f"Staged output already exists for batch {batch_id}")
+
+    # Files without a marker are leftovers from an incomplete attempt and can be rebuilt.
+    accepted_path.unlink(missing_ok=True)
+    quarantine_path.unlink(missing_ok=True)
 
     accepted_path.parent.mkdir(parents=True, exist_ok=True)
     quarantine_path.parent.mkdir(parents=True, exist_ok=True)
+    completion_marker.parent.mkdir(parents=True, exist_ok=True)
 
     accepted.sink_parquet(accepted_path)
     quarantine.sink_parquet(quarantine_path)
+    completion_marker.touch(exist_ok=False)
 
     return accepted_path, quarantine_path
 
