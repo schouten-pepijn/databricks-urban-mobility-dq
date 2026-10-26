@@ -165,6 +165,7 @@ def create_taxi_fixtures(source_path: Path, fixture_dir: Path) -> None:
 
     existing = [path.name for path in (first_100_path, january_1_path) if path.exists()]
     if existing:
+        # Keep previously created outputs safe; inspect them before replacing anything.
         raise FileExistsError(
             f"Derived fixture already exists; inspect before replacing: {existing}"
         )
@@ -245,10 +246,22 @@ def main(manifest_path: Path | None = None) -> None:
 
     taxi_path = source_dir / taxi_name
     weather_path = source_dir / weather_name
+    # Reject changed or incomplete source files before inspecting or transforming data.
     verify_source_file(taxi_path, taxi_bytes, taxi_sha256)
     verify_source_file(weather_path, weather_bytes, weather_sha256)
 
-    validate_taxi_schema(taxi_path)
+    # The contract path is based on the repository, not the shell's current directory.
+    contract_path = (
+        Path(__file__).resolve().parents[1] / "contracts" / "taxi_v1.yaml"
+    )
+    # File-level schema errors stop here; new non-required columns are reported.
+    extra_columns = validate_file_schema(taxi_path, contract_path)
+    print(
+        {
+            "taxi_schema": "valid",
+            "taxi_extra_columns": extra_columns,
+        }
+    )
     validate_weather_json(weather_path)
     create_taxi_fixtures(taxi_path, source_dir / "fixtures")
 
