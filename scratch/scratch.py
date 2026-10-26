@@ -84,10 +84,12 @@ def validate_weather_json(path: Path) -> None:
     times = hourly.get("time")
     temperatures = hourly.get("temperature_2m")
     precipitation = hourly.get("precipitation")
-    if not all(
-        isinstance(values, list) for values in (times, temperatures, precipitation)
-    ):
-        raise ValueError("Weather hourly values must be arrays.")
+    if not isinstance(times, list):
+        raise TypeError("Weather 'time' must be an array.")
+    if not isinstance(temperatures, list):
+        raise TypeError("Weather 'temperature_2m' must be an array.")
+    if not isinstance(precipitation, list):
+        raise TypeError("Weather 'precipitation' must be an array.")
 
     array_lengths = (len(times), len(temperatures), len(precipitation))
     if len(set(array_lengths)) != 1:
@@ -95,10 +97,12 @@ def validate_weather_json(path: Path) -> None:
     if array_lengths[0] != EXPECTED_HOURLY_ROWS:
         raise ValueError(f"Expected 768 weather hours, found {array_lengths[0]}.")
 
-    if any(not isinstance(value, int) or isinstance(value, bool) for value in times):
-        raise ValueError("Weather times must be Unix epoch integers.")
+    epochs: list[int] = []
+    for value in times:
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise TypeError("Weather times must be Unix epoch integers.")
+        epochs.append(value)
 
-    epochs = times
     if len(set(epochs)) != len(epochs):
         raise ValueError("Weather contains duplicate timestamps.")
     if any(value % 3600 != 0 for value in epochs):
