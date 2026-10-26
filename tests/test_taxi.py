@@ -6,8 +6,10 @@ import polars as pl
 import pytest
 
 from urban_mobility_dq.taxi import (
+    add_utc_timestamps,
     classify_taxi,
     reconcile_taxi_row_counts,
+    scan_taxi_with_identity,
     sink_classified_taxi,
 )
 
@@ -236,9 +238,7 @@ def test_sink_classified_taxi_retries_incomplete_batch(tmp_path: Path) -> None:
     accepted_path = (
         stage_root / "accepted" / f"batch_id={batch_id}" / "part-000.parquet"
     )
-    completion_marker = (
-        stage_root / "_complete" / f"batch_id={batch_id}" / "_SUCCESS"
-    )
+    completion_marker = stage_root / "_complete" / f"batch_id={batch_id}" / "_SUCCESS"
     accepted = pl.DataFrame({"value": [1]}).lazy()
     invalid_quarantine = pl.DataFrame({"value": [2]}).lazy().select("missing")
 
@@ -266,11 +266,14 @@ def test_sink_classified_taxi_propagates_write_failure(tmp_path: Path) -> None:
     rows = pl.DataFrame({"value": [1]}).lazy()
 
     # Simulate a filesystem failure and ensure callers see the original error.
-    with patch.object(
-        pl.LazyFrame,
-        "sink_parquet",
-        side_effect=OSError("simulated disk error"),
-    ), pytest.raises(OSError, match="simulated disk error"):
+    with (
+        patch.object(
+            pl.LazyFrame,
+            "sink_parquet",
+            side_effect=OSError("simulated disk error"),
+        ),
+        pytest.raises(OSError, match="simulated disk error"),
+    ):
         sink_classified_taxi(rows, rows, tmp_path / "stage", "failed-batch")
 
 
@@ -291,3 +294,26 @@ def test_reconcile_taxi_row_counts_rejects_unbalanced_files(tmp_path: Path) -> N
 
     with pytest.raises(ValueError, match="Row-count reconciliation failed"):
         reconcile_taxi_row_counts(raw_path, accepted_path, quarantine_path)
+
+
+def test_identical_source_rows_keep_distinct_physical_keys(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "duplicate_rows.parquet"
+    duplicate = valid_row("same-source-row")
+    pl.DataFrame([duplicate, duplicate], schema=ROW_SCHEMA).write_parquet(source_path)
+
+    identified = scan_taxi_with_identity(
+        source_path,
+        source_sha256="a" * 64,
+        batch_id="duplicate-test",
+    )
+    with_utc = add_utc_timestamps(identified, "America/New_York")
+    accepted, quarantine = classify_taxi(with_utc, MONTH_START, MONTH_END)
+
+    accepted_rows = accepted.collect()
+
+    assert accepted_rows.height == 2
+    assert quarantine.collect().height == 0
+    assert accepted_rows.get_column("source_row_number").to_list() == [0, 1]
+    assert accepted_rows.get_column("trip_key").n_unique() == 2
