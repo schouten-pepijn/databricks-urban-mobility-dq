@@ -227,9 +227,7 @@ def main(manifest_path: Path | None = None) -> None:
     verify_source_file(weather_path, weather_bytes, weather_sha256)
 
     # The contract path is based on the repository, not the shell's current directory.
-    contract_path = (
-        Path(__file__).resolve().parents[1] / "contracts" / "taxi_v1.yaml"
-    )
+    contract_path = Path(__file__).resolve().parents[1] / "contracts" / "taxi_v1.yaml"
     # File-level schema errors stop here; new non-required columns are reported.
     extra_columns = validate_file_schema(taxi_path, contract_path)
     print(
