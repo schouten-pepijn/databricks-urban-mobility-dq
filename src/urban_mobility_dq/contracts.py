@@ -25,6 +25,9 @@ def validate_file_schema(
         raise TypeError("Contract must be a YAML mapping.")
 
     required_columns = contract.get("required_columns")
+    if not required_columns:
+        raise ValueError("Contract must require at least one column.")
+
     expected_types = contract.get("expected_types")
 
     if not isinstance(required_columns, list) or not all(
