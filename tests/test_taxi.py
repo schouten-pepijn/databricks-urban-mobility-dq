@@ -206,6 +206,9 @@ def test_sink_classified_taxi_writes_separate_immutable_outputs(
     assert pl.read_parquet(quarantine_path).get_column("test_case").to_list() == [
         "quarantined"
     ]
+    assert (
+        tmp_path / "stage" / "_complete" / "batch_id=test-batch" / "_SUCCESS"
+    ).is_file()
 
     # A batch's staged files are immutable, so a repeat cannot overwrite them.
     with pytest.raises(FileExistsError, match="test-batch"):
@@ -215,6 +218,38 @@ def test_sink_classified_taxi_writes_separate_immutable_outputs(
             tmp_path / "stage",
             "test-batch",
         )
+
+
+def test_sink_classified_taxi_retries_incomplete_batch(tmp_path: Path) -> None:
+    stage_root = tmp_path / "stage"
+    batch_id = "retry-batch"
+    accepted_path = (
+        stage_root / "accepted" / f"batch_id={batch_id}" / "part-000.parquet"
+    )
+    completion_marker = (
+        stage_root / "_complete" / f"batch_id={batch_id}" / "_SUCCESS"
+    )
+    accepted = pl.DataFrame({"value": [1]}).lazy()
+    invalid_quarantine = pl.DataFrame({"value": [2]}).lazy().select("missing")
+
+    # The second sink fails, so the first output is left uncommitted without a marker.
+    with pytest.raises(pl.exceptions.ColumnNotFoundError):
+        sink_classified_taxi(accepted, invalid_quarantine, stage_root, batch_id)
+
+    assert accepted_path.is_file()
+    assert not completion_marker.exists()
+
+    # A retry replaces leftover files and marks the batch complete after both writes.
+    accepted_path, quarantine_path = sink_classified_taxi(
+        accepted,
+        pl.DataFrame({"value": [2]}).lazy(),
+        stage_root,
+        batch_id,
+    )
+
+    assert pl.read_parquet(accepted_path).get_column("value").to_list() == [1]
+    assert pl.read_parquet(quarantine_path).get_column("value").to_list() == [2]
+    assert completion_marker.is_file()
 
 
 def test_sink_classified_taxi_propagates_write_failure(tmp_path: Path) -> None:
