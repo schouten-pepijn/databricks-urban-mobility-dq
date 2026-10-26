@@ -5,7 +5,11 @@ from unittest.mock import patch
 import polars as pl
 import pytest
 
-from urban_mobility_dq.taxi import classify_taxi, sink_classified_taxi
+from urban_mobility_dq.taxi import (
+    classify_taxi,
+    reconcile_taxi_row_counts,
+    sink_classified_taxi,
+)
 
 MONTH_START = datetime(2024, 1, 1)
 MONTH_END = datetime(2024, 2, 1)
