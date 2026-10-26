@@ -8,15 +8,9 @@ from pathlib import Path
 
 import polars as pl
 
+from urban_mobility_dq.contracts import validate_file_schema
+
 EXPECTED_HOURLY_ROWS = 768
-REQUIRED_TAXI_COLUMNS = {
-    "tpep_pickup_datetime",
-    "tpep_dropoff_datetime",
-    "PULocationID",
-    "DOLocationID",
-    "trip_distance",
-    "total_amount",
-}
 
 
 def sha256_file(path: Path) -> str:
@@ -71,24 +65,6 @@ def verify_source_file(
             "bytes": actual_bytes,
             "sha256": actual_sha256,
             "matches_manifest": True,
-        }
-    )
-
-
-def validate_taxi_schema(path: Path) -> None:
-    """Check the taxi Parquet metadata contains the required contract columns."""
-    schema = pl.scan_parquet(path).collect_schema()
-    missing_columns = REQUIRED_TAXI_COLUMNS - set(schema.names())
-    if missing_columns:
-        raise ValueError(
-            f"Taxi file is missing required columns: {sorted(missing_columns)}"
-        )
-
-    print(
-        {
-            "taxi_required_schema": {
-                column: str(schema[column]) for column in sorted(REQUIRED_TAXI_COLUMNS)
-            }
         }
     )
 
