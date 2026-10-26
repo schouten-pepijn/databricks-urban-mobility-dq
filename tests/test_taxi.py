@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import polars as pl
 import pytest
@@ -214,3 +215,15 @@ def test_sink_classified_taxi_writes_separate_immutable_outputs(
             tmp_path / "stage",
             "test-batch",
         )
+
+
+def test_sink_classified_taxi_propagates_write_failure(tmp_path: Path) -> None:
+    rows = pl.DataFrame({"value": [1]}).lazy()
+
+    # Simulate a filesystem failure and ensure callers see the original error.
+    with patch.object(
+        pl.LazyFrame,
+        "sink_parquet",
+        side_effect=OSError("simulated disk error"),
+    ), pytest.raises(OSError, match="simulated disk error"):
+        sink_classified_taxi(rows, rows, tmp_path / "stage", "failed-batch")
