@@ -262,3 +262,22 @@ def test_sink_classified_taxi_propagates_write_failure(tmp_path: Path) -> None:
         side_effect=OSError("simulated disk error"),
     ), pytest.raises(OSError, match="simulated disk error"):
         sink_classified_taxi(rows, rows, tmp_path / "stage", "failed-batch")
+
+
+def test_reconcile_taxi_row_counts_accepts_balanced_files(tmp_path: Path) -> None:
+    raw_path = write_row_count_parquet(tmp_path / "raw.parquet", 3)
+    accepted_path = write_row_count_parquet(tmp_path / "accepted.parquet", 2)
+    quarantine_path = write_row_count_parquet(tmp_path / "quarantine.parquet", 1)
+
+    counts = reconcile_taxi_row_counts(raw_path, accepted_path, quarantine_path)
+
+    assert counts == {"raw": 3, "accepted": 2, "quarantine": 1}
+
+
+def test_reconcile_taxi_row_counts_rejects_unbalanced_files(tmp_path: Path) -> None:
+    raw_path = write_row_count_parquet(tmp_path / "raw.parquet", 3)
+    accepted_path = write_row_count_parquet(tmp_path / "accepted.parquet", 1)
+    quarantine_path = write_row_count_parquet(tmp_path / "quarantine.parquet", 1)
+
+    with pytest.raises(ValueError, match="Row-count reconciliation failed"):
+        reconcile_taxi_row_counts(raw_path, accepted_path, quarantine_path)
