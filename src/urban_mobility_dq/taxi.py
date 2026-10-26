@@ -1,6 +1,34 @@
+from datetime import datetime
 from pathlib import Path
 
 import polars as pl
+
+
+def add_utc_timestamps(
+    rows: pl.LazyFrame,
+    source_timezone: str,
+) -> pl.LazyFrame:
+    """Interpret naive taxi times in their source timezone and derive UTC times."""
+    return rows.with_columns(
+        # tpep_pickup_datetime
+        pl.col("tpep_pickup_datetime")
+        .dt.replace_time_zone(
+            source_timezone,
+            ambiguous="null",
+            non_existent="null",
+        )
+        .dt.convert_time_zone("UTC")
+        .alias("pickup_utc"),
+        # tpep_dropoff_datetime
+        pl.col("tpep_dropoff_datetime")
+        .dt.replace_time_zone(
+            source_timezone,
+            ambiguous="null",
+            non_existent="null",
+        )
+        .dt.convert_time_zone("UTC")
+        .alias("dropoff_utc"),
+    )
 
 
 def scan_taxi_with_identity(
