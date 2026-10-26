@@ -1,9 +1,10 @@
 from datetime import UTC, datetime
+from pathlib import Path
 
 import polars as pl
 import pytest
 
-from urban_mobility_dq.taxi import classify_taxi
+from urban_mobility_dq.taxi import classify_taxi, sink_classified_taxi
 
 MONTH_START = datetime(2024, 1, 1)
 MONTH_END = datetime(2024, 2, 1)
@@ -179,3 +180,37 @@ def test_valid_rows_and_negative_amount_warnings_are_accepted() -> None:
         "positive-amount": False,
     }
     assert accepted.height + quarantine.height == len(rows)
+
+
+def test_sink_classified_taxi_writes_separate_immutable_outputs(
+    tmp_path: Path,
+) -> None:
+    rows = [
+        valid_row("accepted"),
+        valid_row("quarantined", trip_distance=-1.0),
+    ]
+    accepted, quarantine = classify_rows(rows)
+
+    accepted_path, quarantine_path = sink_classified_taxi(
+        accepted.lazy(),
+        quarantine.lazy(),
+        tmp_path / "stage",
+        "test-batch",
+    )
+
+    # Read both Parquet files back to prove each output was written correctly.
+    assert pl.read_parquet(accepted_path).get_column("test_case").to_list() == [
+        "accepted"
+    ]
+    assert pl.read_parquet(quarantine_path).get_column("test_case").to_list() == [
+        "quarantined"
+    ]
+
+    # A batch's staged files are immutable, so a repeat cannot overwrite them.
+    with pytest.raises(FileExistsError, match="test-batch"):
+        sink_classified_taxi(
+            accepted.lazy(),
+            quarantine.lazy(),
+            tmp_path / "stage",
+            "test-batch",
+        )
