@@ -50,6 +50,12 @@ def classify_rows(
     return accepted.collect(), quarantine.collect()
 
 
+def write_row_count_parquet(path: Path, row_count: int) -> Path:
+    """Write a small Parquet file with the requested number of rows."""
+    pl.DataFrame({"row_number": list(range(row_count))}).write_parquet(path)
+    return path
+
+
 @pytest.mark.parametrize(
     ("overrides", "expected_reason"),
     [
