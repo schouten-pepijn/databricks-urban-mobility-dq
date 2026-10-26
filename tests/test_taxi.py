@@ -8,6 +8,7 @@ from urban_mobility_dq.taxi import classify_taxi
 MONTH_START = datetime(2024, 1, 1)
 MONTH_END = datetime(2024, 2, 1)
 
+# Explicit types let the fixtures include nulls without Polars guessing a type.
 ROW_SCHEMA = {
     "test_case": pl.String,
     "tpep_pickup_datetime": pl.Datetime("ns", time_zone=None),
@@ -61,6 +62,7 @@ def classify_rows(
                 "pickup_utc": None,
             },
             "pickup_dst_invalid",
+            # This is also outside January; the earlier DST rule must win.
             id="dst-invalid-pickup-before-out-of-month-rule",
         ),
         pytest.param(
@@ -69,6 +71,7 @@ def classify_rows(
                 "pickup_utc": datetime(2024, 2, 1, 5, tzinfo=UTC),
             },
             "pickup_outside_month",
+            # The interval ends at February 1, so this timestamp is excluded.
             id="month-end-is-exclusive",
         ),
         pytest.param(
@@ -135,7 +138,9 @@ def test_invalid_rows_are_quarantined_with_primary_reason(
     overrides: dict[str, object],
     expected_reason: str,
 ) -> None:
-    accepted, quarantine = classify_rows([valid_row(**overrides)])
+    row = valid_row()
+    row.update(overrides)
+    accepted, quarantine = classify_rows([row])
 
     assert accepted.height == 0
     assert quarantine.height == 1
@@ -144,6 +149,7 @@ def test_invalid_rows_are_quarantined_with_primary_reason(
 
 
 def test_valid_rows_and_negative_amount_warnings_are_accepted() -> None:
+    # A negative or missing total amount is retained; only the negative gets a warning.
     rows = [
         valid_row("positive-amount"),
         valid_row("negative-amount", total_amount=-2.0),
