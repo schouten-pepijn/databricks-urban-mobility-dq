@@ -1,0 +1,98 @@
+version: "3"
+
+tasks:
+  default:
+    desc: Show tasks
+    cmds:
+      - task --list
+
+  # Dependencies
+  sync:
+    desc: Sync project dependencies
+    cmds:
+      - uv sync --all-groups
+
+  # Formatting
+  fmt:
+    desc: Format Python files
+    cmds:
+      - uv run ruff format .
+
+  fmt:check:
+    desc: Check formatting without modifying files
+    cmds:
+      - uv run ruff format --check .
+
+  # linting
+  lint:
+    desc: Run Ruff lint checks
+    cmds:
+      - uv run ruff check .
+
+  lint:fix:
+    desc: Fix Ruff linting issues
+    cmds:
+      - uv run ruff check --fix .
+
+  # Validation
+  check:
+    desc: Run formatting and lint checks
+    cmds:
+      - task: fmt:check
+      - task: lint
+
+  fix:
+    desc: Format and fix lint issues
+    cmds:
+      - task: lint:fix
+      - task: fmt
+
+  # Testing
+  test:
+    desc: Run pytest
+    cmds:
+      - uv run pytest {{.CLI_ARGS}}
+
+  # Python execution
+  py:
+    desc: Run Python with uv
+    cmds:
+      - uv run python {{.CLI_ARGS}}
+
+  run:
+    desc: Run any command in the uv environment
+    cmds:
+      - uv run {{.CLI_ARGS}}
+
+  # Versioning
+  version:
+    desc: Show current project version
+    cmds:
+      - uv version
+
+  bump:patch:
+    desc: Bump patch version (1.2.3 -> 1.2.4)
+    cmds:
+      - uv version --bump patch
+
+  bump:minor:
+    desc: Bump minor version (1.2.3 -> 1.3.0)
+    cmds:
+      - uv version --bump minor
+
+  bump:major:
+    desc: Bump major version (1.2.3 -> 2.0.0)
+    cmds:
+      - uv version --bump major
+
+  # Build
+  build:
+    desc: Build the Python package
+    cmds:
+      - uv build
+
+  # Maintenance
+  lock:
+    desc: Update dependency lockfile
+    cmds:
+      - uv lock --upgrade
