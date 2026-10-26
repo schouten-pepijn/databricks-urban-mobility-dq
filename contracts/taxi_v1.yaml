@@ -1,0 +1,25 @@
+version: "1.0.0"
+source: nyc_tlc_yellow
+grain: one_physical_parquet_row
+timezone_assumption: America/New_York
+
+required_columns:
+  - tpep_pickup_datetime
+  - tpep_dropoff_datetime
+  - PULocationID
+  - DOLocationID
+  - trip_distance
+  - total_amount
+
+expected_types:
+  tpep_pickup_datetime: datetime_ns_naive
+  tpep_dropoff_datetime: datetime_ns_naive
+  PULocationID: int32
+  DOLocationID: int32
+  trip_distance: float64
+  total_amount: float64
+
+schema_change:
+  missing_required_column: fail_batch
+  incompatible_type: fail_batch
+  new_optional_column: report_only
