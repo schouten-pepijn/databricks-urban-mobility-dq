@@ -34,12 +34,19 @@ tasks:
     cmds:
       - uv run ruff check --fix .
 
+  # type checking
+  typecheck:
+    desc: Run BasedPyright static type checking
+    cmds:
+      - uv run basedpyright
+
   # Validation
   check:
     desc: Run formatting and lint checks
     cmds:
       - task: fmt:check
       - task: lint
+      - task: typecheck
 
   fix:
     desc: Format and fix lint issues
