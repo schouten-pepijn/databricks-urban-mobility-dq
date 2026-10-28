@@ -339,3 +339,46 @@ def test_nonexistent_dst_pickup_is_quarantined() -> None:
     assert quarantine.collect().get_column("reason_code").to_list() == [
         "pickup_dst_invalid"
     ]
+
+
+def test_zero_distance_is_accepted() -> None:
+    accepted, quarantine = classify_rows(
+        [valid_row("zero-distance", trip_distance=0.0)]
+    )
+
+    assert accepted.height == 1
+    assert accepted.get_column("trip_distance").item() == 0.0
+    assert quarantine.is_empty()
+
+
+def test_empty_taxi_parquet_produces_empty_outputs(tmp_path: Path) -> None:
+    source_path = tmp_path / "empty.parquet"
+    pl.DataFrame(schema=ROW_SCHEMA).write_parquet(source_path)
+
+    rows = scan_taxi_with_identity(
+        source_path,
+        source_sha256="a" * 64,
+        batch_id="empty-test",
+    )
+    with_utc = add_utc_timestamps(rows, "America/New_York")
+    accepted, quarantine = classify_taxi(with_utc, MONTH_START, MONTH_END)
+
+    assert accepted.collect().is_empty()
+    assert quarantine.collect().is_empty()
+
+
+def test_exactly_24_hour_trip_is_accepted() -> None:
+    accepted, quarantine = classify_rows(
+        [
+            valid_row(
+                "exactly-24-hours",
+                tpep_pickup_datetime=datetime(2024, 1, 15, 12, 0),
+                tpep_dropoff_datetime=datetime(2024, 1, 16, 12, 0),
+                pickup_utc=datetime(2024, 1, 15, 17, 0, tzinfo=UTC),
+                dropoff_utc=datetime(2024, 1, 16, 17, 0, tzinfo=UTC),
+            )
+        ]
+    )
+
+    assert accepted.height == 1
+    assert quarantine.is_empty()
