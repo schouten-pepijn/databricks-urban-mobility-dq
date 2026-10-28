@@ -317,3 +317,25 @@ def test_identical_source_rows_keep_distinct_physical_keys(
     assert quarantine.collect().height == 0
     assert accepted_rows.get_column("source_row_number").to_list() == [0, 1]
     assert accepted_rows.get_column("trip_key").n_unique() == 2
+
+
+def test_nonexistent_dst_pickup_is_quarantined() -> None:
+    row = valid_row(
+        "dst-gap",
+        tpep_pickup_datetime=datetime(2024, 3, 10, 2, 30),
+    )
+    source = pl.DataFrame([row], schema=ROW_SCHEMA).lazy()
+
+    with_utc = add_utc_timestamps(source, "America/New_York").collect()
+    assert with_utc.get_column("pickup_utc").item() is None
+
+    accepted, quarantine = classify_taxi(
+        with_utc.lazy(),
+        MONTH_START,
+        MONTH_END,
+    )
+
+    assert accepted.collect().is_empty()
+    assert quarantine.collect().get_column("reason_code").to_list() == [
+        "pickup_dst_invalid"
+    ]
