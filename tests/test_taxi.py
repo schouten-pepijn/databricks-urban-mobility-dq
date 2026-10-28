@@ -382,3 +382,49 @@ def test_exactly_24_hour_trip_is_accepted() -> None:
 
     assert accepted.height == 1
     assert quarantine.is_empty()
+
+
+def test_classification_is_deterministic_for_repeated_source_runs(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "repeatability.parquet"
+    rows = [
+        valid_row("accepted"),
+        valid_row("negative-distance", trip_distance=-1.0),
+        valid_row("invalid-location", PULocationID=None),
+    ]
+    pl.DataFrame(rows, schema=ROW_SCHEMA).write_parquet(source_path)
+
+    def run_classification() -> tuple[pl.DataFrame, pl.DataFrame]:
+        identified = scan_taxi_with_identity(
+            source_path,
+            source_sha256="b" * 64,
+            batch_id="repeatability-test",
+        )
+        with_utc = add_utc_timestamps(identified, "America/New_York")
+        accepted, quarantine = classify_taxi(with_utc, MONTH_START, MONTH_END)
+
+        return (
+            accepted.collect().sort("trip_key"),
+            quarantine.collect().sort("trip_key"),
+        )
+
+    first_accepted, first_quarantine = run_classification()
+    second_accepted, second_quarantine = run_classification()
+
+    assert first_accepted.equals(second_accepted)
+    assert first_quarantine.equals(second_quarantine)
+    assert (first_accepted.height, first_quarantine.height) == (
+        second_accepted.height,
+        second_quarantine.height,
+    )
+
+    first_reasons = first_quarantine.get_column("reason_code").to_list()
+    second_reasons = second_quarantine.get_column("reason_code").to_list()
+    first_reason_counts = {
+        reason: first_reasons.count(reason) for reason in sorted(set(first_reasons))
+    }
+    second_reason_counts = {
+        reason: second_reasons.count(reason) for reason in sorted(set(second_reasons))
+    }
+    assert first_reason_counts == second_reason_counts
