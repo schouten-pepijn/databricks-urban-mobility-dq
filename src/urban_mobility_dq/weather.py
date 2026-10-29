@@ -68,7 +68,11 @@ def join_taxi_weather(
         raise ValueError("Weather data contains duplicate timestamps")
 
     taxi_by_hour = taxi.with_columns(
-        pl.col("pickup_utc").dt.truncate("1h").alias("pickup_hour_utc")
+        pl.col("pickup_utc")
+        .dt.truncate("1h")
+        # Taxi timestamps are nanoseconds; weather timestamps use microseconds.
+        .cast(pl.Datetime(time_unit="us", time_zone="UTC"))
+        .alias("pickup_hour_utc")
     )
     weather_for_join = weather.lazy().with_columns(
         pl.lit(True).alias("_weather_present")
