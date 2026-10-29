@@ -5,7 +5,12 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from urban_mobility_dq.weather import join_taxi_weather, load_weather
+from urban_mobility_dq.taxi import add_utc_timestamps
+from urban_mobility_dq.weather import (
+    join_taxi_weather,
+    load_weather,
+    summarize_weather_metrics,
+)
 
 
 def test_load_weather_accepts_degree_celsius_and_converts_epoch_to_utc(
@@ -160,6 +165,35 @@ def test_join_taxi_weather_preserves_rows_when_an_hour_is_missing() -> None:
     assert joined.get_column("temperature_2m").to_list() == [3.0, None]
 
 
+def test_join_taxi_weather_aligns_datetime_units() -> None:
+    taxi = pl.DataFrame(
+        {
+            "pickup_utc": pl.Series(
+                "pickup_utc",
+                [datetime(2024, 1, 1, 0, 30, tzinfo=UTC)],
+                dtype=pl.Datetime(time_unit="ns", time_zone="UTC"),
+            )
+        }
+    ).lazy()
+    weather = pl.DataFrame(
+        {
+            "weather_hour_utc": pl.Series(
+                "weather_hour_utc",
+                [datetime(2024, 1, 1, 0, 0, tzinfo=UTC)],
+                dtype=pl.Datetime(time_unit="us", time_zone="UTC"),
+            ),
+            "temperature_2m": [3.0],
+            "precipitation": [0.0],
+        }
+    )
+
+    joined = join_taxi_weather(taxi, weather).collect()
+
+    assert joined.height == 1
+    assert joined.get_column("weather_match").to_list() == [True]
+    assert joined.get_column("temperature_2m").to_list() == [3.0]
+
+
 def test_join_taxi_weather_rejects_duplicate_weather_hours() -> None:
     taxi = pl.DataFrame(
         {"pickup_utc": [datetime(2024, 1, 1, 0, 30, tzinfo=UTC)]}
@@ -203,3 +237,34 @@ def test_january_local_pickup_joins_to_february_utc_weather_hour() -> None:
     assert joined.get_column("pickup_hour_utc").cast(pl.Int64).item() == (
         1706760000000000
     )
+
+
+def test_summarize_weather_metrics_counts_missing_hours_and_null_values() -> None:
+    joined = pl.DataFrame(
+        {
+            "pickup_hour_utc": [
+                datetime(2024, 1, 1, 0, 0, tzinfo=UTC),
+                datetime(2024, 1, 1, 1, 0, tzinfo=UTC),
+            ],
+            "weather_match": [True, False],
+            "temperature_2m": [None, None],
+            "precipitation": [0.0, None],
+        },
+        schema={
+            "pickup_hour_utc": pl.Datetime(time_unit="us", time_zone="UTC"),
+            "weather_match": pl.Boolean,
+            "temperature_2m": pl.Float64,
+            "precipitation": pl.Float64,
+        },
+    )
+
+    metrics = summarize_weather_metrics(joined)
+
+    assert metrics == {
+        "weather_required_hours": 2,
+        "weather_present_hours": 1,
+        "weather_missing_hours": 1,
+        "trip_weather_match_rate": 0.5,
+        "temperature_null_hours": 1,
+        "precipitation_null_hours": 0,
+    }
